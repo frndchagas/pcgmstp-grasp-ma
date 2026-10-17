@@ -1,0 +1,42 @@
+name: Compile and check
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Compile with warnings as errors
+        run: c++ -std=c++17 -O3 -Wall -Wextra -Wpedantic -Werror grasp.cpp -o grasp
+      - name: Independent mathematical and parser checks
+        run: ./grasp --self-test
+      - name: CLI example
+        shell: bash
+        run: |
+          ./grasp --example > exemplo.GTP
+          ./grasp exemplo.GTP --seed 1 --iterations 12 --trace > example.jsonl
+          python3 - <<'PY'
+          import json
+          with open('example.jsonl') as source:
+              rows = [json.loads(line) for line in source]
+          assert len(rows) == 13
+          assert all(row['type'] == 'iteration' for row in rows[:-1])
+          result = rows[-1]
+          assert result['type'] == 'result' and result['complete']
+          assert result['completed_iterations'] == 12
+          assert result['best']['objective'] == -15
+          assert result['best']['representatives'] == [1, 3]
+          assert sorted(sorted(edge) for edge in result['best']['edges']) == [[1, 3]]
+          PY
+      - name: Compile with sanitizers
+        run: clang++ -std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer grasp.cpp -o grasp-sanitize
+      - name: Sanitizer checks
+        run: ./grasp-sanitize --self-test

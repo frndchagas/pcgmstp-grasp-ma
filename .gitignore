@@ -1,0 +1,7 @@
+/build/
+/grasp
+/grasp-sanitize
+/exemplo.GTP
+/example.jsonl
+*.dSYM/
+.DS_Store
